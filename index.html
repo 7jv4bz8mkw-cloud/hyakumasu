@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="100マス">
+<title>100マス計算</title>
+<style>
+  :root {
+    --bg: #f6f4ef;
+    --panel: #ffffff;
+    --ink: #1f2328;
+    --muted: #6b7280;
+    --line: #d6d3cc;
+    --head: #eef2f7;
+    --accent: #2563eb;
+    --hl: #fff6d6;
+    --ok: #dcfce7;
+    --ok-ink: #166534;
+    --ng: #fee2e2;
+    --ng-ink: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16181d;
+      --panel: #1f2229;
+      --ink: #e6e8eb;
+      --muted: #9aa1ab;
+      --line: #383c45;
+      --head: #2a2f39;
+      --accent: #60a5fa;
+      --hl: #3a3420;
+      --ok: #133a24;
+      --ok-ink: #86efac;
+      --ng: #45191b;
+      --ng-ink: #fca5a5;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16181d;
+    --panel: #1f2229;
+    --ink: #e6e8eb;
+    --muted: #9aa1ab;
+    --line: #383c45;
+    --head: #2a2f39;
+    --accent: #60a5fa;
+    --hl: #3a3420;
+    --ok: #133a24;
+    --ok-ink: #86efac;
+    --ng: #45191b;
+    --ng-ink: #fca5a5;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 24px 16px 48px;
+  }
+  main { width: 100%; max-width: 640px; }
+  h1 { font-size: 1.6rem; margin: 0 0 16px; text-align: center; letter-spacing: .05em; }
+
+  .controls {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center;
+    margin-bottom: 12px;
+  }
+  .modes { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .modes button {
+    border: 0; background: var(--panel); color: var(--ink);
+    padding: 8px 14px; font-size: 1rem; cursor: pointer;
+  }
+  .modes button + button { border-left: 1px solid var(--line); }
+  .modes button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .modes button:disabled { cursor: not-allowed; opacity: .6; }
+  .primary {
+    border: 0; border-radius: 10px; background: var(--accent); color: #fff;
+    padding: 9px 20px; font-size: 1rem; font-weight: 700; cursor: pointer;
+  }
+  .secondary {
+    border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink);
+    padding: 8px 16px; font-size: 1rem; cursor: pointer;
+  }
+
+  .status {
+    display: flex; justify-content: center; gap: 24px; margin-bottom: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .status div { text-align: center; }
+  .status .label { font-size: .75rem; color: var(--muted); }
+  .status .value { font-size: 1.4rem; font-weight: 700; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(11, 1fr);
+    border: 2px solid var(--ink);
+    background: var(--panel);
+    width: 100%;
+    aspect-ratio: 1;
+    user-select: none;
+  }
+  .cell {
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: center;
+    font-size: clamp(.8rem, 3.6vw, 1.3rem);
+    font-variant-numeric: tabular-nums;
+    min-width: 0; min-height: 0;
+  }
+  .cell:nth-child(11n) { border-right: 0; }
+  .cell:nth-last-child(-n+11) { border-bottom: 0; }
+  .head { background: var(--head); font-weight: 700; }
+  .head.corner { font-size: clamp(1rem, 4.5vw, 1.6rem); color: var(--accent); }
+  .head.active { background: var(--hl); color: var(--accent); }
+  .cell:nth-child(-n+11) { border-bottom: 2px solid var(--ink); }
+  .cell:nth-child(11n+1) { border-right: 2px solid var(--ink); }
+  .cell:nth-child(11n+6) { border-right: 1px solid var(--muted); }
+  .cell:nth-child(n+56):nth-child(-n+66) { border-bottom-color: var(--muted); }
+
+  .cell input {
+    width: 100%; height: 100%; border: 0; background: transparent; color: inherit;
+    text-align: center; font: inherit; padding: 0; outline: none;
+  }
+  .cell input:focus, .cell.current input { background: var(--hl); box-shadow: inset 0 0 0 2px var(--accent); }
+  html { touch-action: manipulation; }
+  body.touch .cell input { pointer-events: none; }
+  .cell input:disabled { color: var(--ink); -webkit-text-fill-color: var(--ink); }
+  .cell.ok { background: var(--ok); }
+  .cell.ng { background: var(--ng); }
+  .cell.ng input { color: var(--ng-ink); -webkit-text-fill-color: var(--ng-ink); font-weight: 700; }
+  .cell .fix { font-size: .6em; color: var(--ng-ink); position: absolute; right: 2px; bottom: 0; }
+  .cell { position: relative; }
+
+  .hint { text-align: center; color: var(--muted); font-size: .85rem; margin-top: 10px; }
+
+  .result {
+    margin-top: 16px; padding: 16px; border-radius: 12px; background: var(--panel);
+    border: 1px solid var(--line); text-align: center; display: none;
+  }
+  .result.show { display: block; }
+  .result .big { font-size: 1.5rem; font-weight: 700; margin: 4px 0; }
+  .result .sub { color: var(--muted); }
+  .result .record { color: var(--accent); font-weight: 700; margin-top: 6px; }
+
+  .history { margin-top: 20px; }
+  .history h2 { font-size: 1rem; margin: 0 0 8px; }
+  .history table { width: 100%; border-collapse: collapse; font-size: .9rem; font-variant-numeric: tabular-nums; }
+  .history th, .history td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; }
+  .history th { color: var(--muted); font-weight: 500; }
+  .empty { color: var(--muted); font-size: .9rem; }
+
+  .keypad {
+    display: none;
+    position: fixed; left: 0; right: 0; bottom: 0;
+    grid-template-columns: repeat(3, 1fr); gap: 6px;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    background: var(--head); border-top: 1px solid var(--line);
+    max-width: 640px; margin: 0 auto;
+  }
+  .keypad button {
+    height: 48px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--panel); color: var(--ink); font-size: 1.4rem; font-weight: 600;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  }
+  .keypad button:active { background: var(--hl); }
+  .keypad button[data-k="next"] { background: var(--accent); color: #fff; border-color: var(--accent); font-size: 1.1rem; }
+  body.touch.playing .keypad { display: grid; }
+  body.touch .keypad, body.touch .grid { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  body.touch.playing { padding-bottom: 260px; }
+  html:has(body.touch.playing) { scroll-padding-bottom: 260px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>100マス計算</h1>
+
+  <div class="controls">
+    <div class="modes" role="group" aria-label="計算の種類">
+      <button data-op="+" aria-pressed="true">たし算</button>
+      <button data-op="-" aria-pressed="false">ひき算</button>
+      <button data-op="×" aria-pressed="false">かけ算</button>
+    </div>
+    <button class="primary" id="startBtn">スタート</button>
+    <button class="secondary" id="gradeBtn" hidden>採点する</button>
+  </div>
+
+  <div class="status">
+    <div><div class="label">タイム</div><div class="value" id="time">0:00.0</div></div>
+    <div><div class="label">入力済み</div><div class="value" id="filled">0 / 100</div></div>
+    <div><div class="label">ベスト</div><div class="value" id="best">—</div></div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+  <p class="hint" id="hint">左の数（たて）と上の数（よこ）を計算します。Enter で次のマスへ、矢印キーで移動できます。</p>
+
+  <div class="result" id="result"></div>
+
+  <div class="keypad" id="keypad">
+    <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+    <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+    <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+    <button data-k="del" aria-label="けす">⌫</button><button data-k="0">0</button><button data-k="next">次へ</button>
+  </div>
+
+  <section class="history">
+    <h2>きろく</h2>
+    <div id="history"></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const OPS = {
+    '+': { name: 'たし算', calc: (a, b) => a + b, rows: () => shuffle(range(0, 9)) },
+    '-': { name: 'ひき算', calc: (a, b) => a - b, rows: () => shuffle(range(10, 19)) },
+    '×': { name: 'かけ算', calc: (a, b) => a * b, rows: () => shuffle(range(0, 9)) },
+  };
+  const STORE_KEY = 'hyakumasu-v1';
+
+  const gridEl = document.getElementById('grid');
+  const timeEl = document.getElementById('time');
+  const filledEl = document.getElementById('filled');
+  const bestEl = document.getElementById('best');
+  const resultEl = document.getElementById('result');
+  const historyEl = document.getElementById('history');
+  const startBtn = document.getElementById('startBtn');
+  const gradeBtn = document.getElementById('gradeBtn');
+  const modeBtns = [...document.querySelectorAll('.modes button')];
+
+  const TOUCH = matchMedia('(pointer: coarse)').matches;
+  if (TOUCH) {
+    document.body.classList.add('touch');
+    document.getElementById('hint').textContent = '左の数（たて）と上の数（よこ）を計算します。下の数字パッドで入力し、「次へ」で次のマスへ進みます。';
+  }
+  const keypadEl = document.getElementById('keypad');
+  let current = null;
+
+  let op = '+';
+  let rows = [], cols = [];
+  let inputs = [];
+  let startAt = 0, timerId = null, playing = false;
+
+  function range(a, b) { const r = []; for (let i = a; i <= b; i++) r.push(i); return r; }
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+  function fmt(ms) {
+    const t = Math.floor(ms / 100);
+    const m = Math.floor(t / 600), s = Math.floor(t / 10) % 60, d = t % 10;
+    return `${m}:${String(s).padStart(2, '0')}.${d}`;
+  }
+
+  let memory = { history: [] };
+  function load() {
+    try { memory = JSON.parse(localStorage.getItem(STORE_KEY)) || memory; } catch {}
+    return memory;
+  }
+  function save(data) {
+    memory = data;
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); } catch {}
+  }
+  function bestFor(data, o) {
+    const perfect = data.history.filter(h => h.op === o && h.correct === 100);
+    return perfect.length ? Math.min(...perfect.map(h => h.ms)) : null;
+  }
+
+  function build(showNumbers) {
+    gridEl.innerHTML = '';
+    inputs = [];
+    const corner = document.createElement('div');
+    corner.className = 'cell head corner';
+    corner.textContent = op;
+    gridEl.appendChild(corner);
+    for (let c = 0; c < 10; c++) {
+      const h = document.createElement('div');
+      h.className = 'cell head';
+      h.dataset.col = c;
+      h.textContent = showNumbers ? cols[c] : '';
+      gridEl.appendChild(h);
+    }
+    for (let r = 0; r < 10; r++) {
+      const h = document.createElement('div');
+      h.className = 'cell head';
+      h.dataset.row = r;
+      h.textContent = showNumbers ? rows[r] : '';
+      gridEl.appendChild(h);
+      for (let c = 0; c < 10; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        const inp = document.createElement('input');
+        inp.inputMode = TOUCH ? 'none' : 'numeric';
+        inp.readOnly = TOUCH;
+        inp.autocomplete = 'off';
+        inp.maxLength = 3;
+        inp.disabled = !showNumbers;
+        inp.dataset.r = r;
+        inp.dataset.c = c;
+        inp.setAttribute('aria-label', `${r + 1}行${c + 1}列`);
+        cell.appendChild(inp);
+        gridEl.appendChild(cell);
+        inputs.push(inp);
+      }
+    }
+  }
+
+  function at(r, c) { return inputs[r * 10 + c]; }
+
+  function highlight(r, c) {
+    gridEl.querySelectorAll('.head.active').forEach(el => el.classList.remove('active'));
+    if (r == null) return;
+    gridEl.querySelector(`.head[data-row="${r}"]`)?.classList.add('active');
+    gridEl.querySelector(`.head[data-col="${c}"]`)?.classList.add('active');
+  }
+
+  function updateFilled() {
+    const n = inputs.filter(i => i.value !== '').length;
+    filledEl.textContent = `${n} / 100`;
+    return n;
+  }
+
+  function tick() { timeEl.textContent = fmt(performance.now() - startAt); }
+
+  function start() {
+    rows = OPS[op].rows();
+    cols = shuffle(range(0, 9));
+    build(true);
+    resultEl.className = 'result';
+    resultEl.innerHTML = '';
+    playing = true;
+    document.body.classList.add('playing');
+    modeBtns.forEach(b => b.disabled = true);
+    startBtn.textContent = 'やりなおし';
+    gradeBtn.hidden = false;
+    startAt = performance.now();
+    clearInterval(timerId);
+    timerId = setInterval(tick, 100);
+    tick();
+    updateFilled();
+    select(at(0, 0));
+  }
+
+  function grade() {
+    if (!playing) return;
+    const ms = performance.now() - startAt;
+    clearInterval(timerId);
+    timeEl.textContent = fmt(ms);
+    playing = false;
+    document.body.classList.remove('playing');
+    highlight(null);
+    current?.parentElement.classList.remove('current');
+    current = null;
+
+    let correct = 0;
+    inputs.forEach(inp => {
+      const r = +inp.dataset.r, c = +inp.dataset.c;
+      const ans = OPS[op].calc(rows[r], cols[c]);
+      const ok = inp.value !== '' && Number(inp.value) === ans;
+      inp.disabled = true;
+      inp.parentElement.classList.add(ok ? 'ok' : 'ng');
+      if (ok) correct++;
+      else {
+        const fix = document.createElement('span');
+        fix.className = 'fix';
+        fix.textContent = ans;
+        inp.parentElement.appendChild(fix);
+      }
+    });
+
+    const data = load();
+    const prevBest = bestFor(data, op);
+    data.history.unshift({ op, ms: Math.round(ms), correct, at: Date.now() });
+    data.history = data.history.slice(0, 50);
+    save(data);
+
+    const isRecord = correct === 100 && (prevBest == null || ms < prevBest);
+    resultEl.innerHTML = `
+      <div class="sub">${OPS[op].name}</div>
+      <div class="big">${correct} / 100 正解　${fmt(ms)}</div>
+      <div class="sub">${correct === 100 ? 'ぜんもん正解！' : `まちがい ${100 - correct} こ（赤いマスの右下が正しい答え）`}</div>
+      ${isRecord ? '<div class="record">🎉 自己ベスト更新！</div>' : ''}`;
+    resultEl.className = 'result show';
+
+    modeBtns.forEach(b => b.disabled = false);
+    startBtn.textContent = 'もういちど';
+    gradeBtn.hidden = true;
+    renderStats();
+    resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function renderStats() {
+    const data = load();
+    const best = bestFor(data, op);
+    bestEl.textContent = best == null ? '—' : fmt(best);
+    const list = data.history.slice(0, 10);
+    if (!list.length) {
+      historyEl.innerHTML = '<p class="empty">まだきろくがありません。スタートを押してはじめよう！</p>';
+      return;
+    }
+    historyEl.innerHTML = `<table>
+      <thead><tr><th>日時</th><th>種類</th><th>正解</th><th>タイム</th></tr></thead>
+      <tbody>${list.map(h => {
+        const d = new Date(h.at);
+        const date = `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+        return `<tr><td>${date}</td><td>${OPS[h.op].name}</td><td>${h.correct}</td><td>${fmt(h.ms)}</td></tr>`;
+      }).join('')}</tbody></table>`;
+  }
+
+  gridEl.addEventListener('input', e => {
+    const inp = e.target;
+    if (inp.tagName !== 'INPUT') return;
+    inp.value = inp.value.replace(/[^0-9０-９]/g, '').replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+    if (updateFilled() === 100) grade();
+  });
+
+  // On touch devices the cells are never focused, so iOS has no input to zoom into.
+  function mark(inp) {
+    current?.parentElement.classList.remove('current');
+    current = inp;
+    if (TOUCH) inp.parentElement.classList.add('current');
+    highlight(+inp.dataset.r, +inp.dataset.c);
+  }
+  function select(inp) {
+    mark(inp);
+    if (!TOUCH) inp.focus();
+  }
+
+  gridEl.addEventListener('focusin', e => {
+    if (e.target.tagName === 'INPUT') mark(e.target);
+  });
+
+  gridEl.addEventListener('pointerdown', e => {
+    if (!TOUCH || !playing) return;
+    const inp = e.target.closest('.cell')?.querySelector('input');
+    if (!inp) return;
+    e.preventDefault();
+    mark(inp);
+  });
+
+  function neighbor(inp, key) {
+    let r = +inp.dataset.r, c = +inp.dataset.c;
+    switch (key) {
+      case 'Enter':
+        c++; if (c > 9) { c = 0; r++; } if (r > 9) { r = 9; c = 9; }
+        break;
+      case 'ArrowRight': if (c < 9) c++; break;
+      case 'ArrowLeft': if (c > 0) c--; break;
+      case 'ArrowDown': if (r < 9) r++; break;
+      case 'ArrowUp': if (r > 0) r--; break;
+      default: return null;
+    }
+    return at(r, c);
+  }
+
+  keypadEl.addEventListener('pointerdown', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    e.preventDefault();
+    if (!playing || !current) return;
+    const k = b.dataset.k;
+    if (k === 'next') {
+      const next = neighbor(current, 'Enter');
+      select(next);
+      next.scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    if (k === 'del') current.value = current.value.slice(0, -1);
+    else if (current.value.length < 3) current.value += k;
+    current.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+
+  gridEl.addEventListener('keydown', e => {
+    const inp = e.target;
+    if (inp.tagName !== 'INPUT' || e.isComposing) return;
+    const next = neighbor(inp, e.key);
+    if (!next) return;
+    e.preventDefault();
+    next.focus();
+    next.select();
+  });
+
+  modeBtns.forEach(b => b.addEventListener('click', () => {
+    if (playing) return;
+    op = b.dataset.op;
+    modeBtns.forEach(x => x.setAttribute('aria-pressed', x === b));
+    build(false);
+    resultEl.className = 'result';
+    timeEl.textContent = '0:00.0';
+    filledEl.textContent = '0 / 100';
+    renderStats();
+  }));
+
+  startBtn.addEventListener('click', start);
+  gradeBtn.addEventListener('click', grade);
+
+  build(false);
+  renderStats();
+})();
+</script>
+</body>
+</html>
